@@ -53,40 +53,50 @@ X_treino_norm <- predict(preProc, X_treino)
 X_teste_norm <- predict(preProc, X_teste)
 
 # -----------------------------------------------------------------------------
-# 4. Configurar o treinamento com validacao cruzada
+# 4. Reducao de dimensionalidade com PCA (acelera muito o nnet)
+# -----------------------------------------------------------------------------
+cat("Aplicando PCA para reducao de dimensionalidade...\n")
+pca_proc <- preProcess(X_treino_norm, method = "pca", thresh = 0.95)
+X_treino_pca <- predict(pca_proc, X_treino_norm)
+X_teste_pca <- predict(pca_proc, X_teste_norm)
+cat("Dimensoes reduzidas de", ncol(X_treino_norm), "para", ncol(X_treino_pca), "componentes\n\n")
+
+# -----------------------------------------------------------------------------
+# 5. Configurar o treinamento com validacao cruzada
 # -----------------------------------------------------------------------------
 ctrl <- trainControl(
   method = "cv",              # Validacao cruzada
-  number = 10,                # 10-fold CV
+  number = 5,                 # 5-fold CV (mais rapido que 10) # Valor antigo: 10
   classProbs = TRUE,          # Probabilidades de classe
   summaryFunction = twoClassSummary,  # Metricas para classificacao binaria
-  savePredictions = "final"   # Salvar predicoes
+  savePredictions = "final",  # Salvar predicoes
+  verboseIter = TRUE          # Mostrar progresso
 )
 
 # -----------------------------------------------------------------------------
-# 5. Treinar o modelo de Rede Neural (nnet)
+# 6. Treinar o modelo de Rede Neural (nnet)
 # -----------------------------------------------------------------------------
 set.seed(1)
 
 cat("Iniciando treinamento da Rede Neural (nnet)...\n")
+cat("Isso pode levar alguns minutos...\n\n")
 
-# Grid de hiperparametros para nnet
+# Grid de hiperparametros reduzido para nnet
 grid_nnet <- expand.grid(
-  size = c(5, 10, 15, 20),    # Numero de neuronios na camada oculta
-  decay = c(0.001, 0.01, 0.1) # Regularizacao (weight decay)
+  size = c(5, 10),            # Numero de neuronios na camada oculta  # Valores antigos: c(5, 10, 15, 20)
+  decay = c(0.01, 0.1)        # Regularizacao (weight decay)          # Valores antigos: c(0.001, 0.01, 0.1)
 )
 
 modelo_nnet <- train(
-  x = X_treino_norm,
+  x = X_treino_pca,
   y = y_treino,
   method = "nnet",            # Rede Neural (MLP com 1 camada oculta)
   trControl = ctrl,
   metric = "ROC",             # Otimizar pela AUC-ROC
   tuneGrid = grid_nnet,       # Grid de hiperparametros
-  preProcess = NULL,          # Ja foi normalizado
-  maxit = 500,                # Maximo de iteracoes
-  trace = FALSE,              # Nao mostrar iteracoes
-  MaxNWts = 10000             # Maximo de pesos (para datasets grandes)
+  maxit = 200,                # Maximo de iteracoes    # Valor antigo: 500
+  trace = FALSE,              # Nao mostrar iteracoes internas
+  MaxNWts = 5000              # Maximo de pesos        # Valor antigo: 10000
 )
 
 cat("Treinamento concluido!\n\n")
@@ -102,8 +112,8 @@ print(modelo_nnet$bestTune)
 # -----------------------------------------------------------------------------
 # 7. Avaliacao no conjunto de teste
 # -----------------------------------------------------------------------------
-predicoes <- predict(modelo_nnet, newdata = X_teste_norm)
-prob_predicoes <- predict(modelo_nnet, newdata = X_teste_norm, type = "prob")
+predicoes <- predict(modelo_nnet, newdata = X_teste_pca)
+prob_predicoes <- predict(modelo_nnet, newdata = X_teste_pca, type = "prob")
 
 # Matriz de confusao
 cat("\n--- Matriz de Confusao (Teste) ---\n")
@@ -126,8 +136,10 @@ tryCatch({
 # -----------------------------------------------------------------------------
 saveRDS(modelo_nnet, "modelo_nnet.rds")
 saveRDS(preProc, "preprocessador_nnet.rds")
+saveRDS(pca_proc, "pca_nnet.rds")
 cat("\nModelo salvo em: modelo_nnet.rds\n")
 cat("Preprocessador salvo em: preprocessador_nnet.rds\n")
+cat("PCA salvo em: pca_nnet.rds\n")
 
 # -----------------------------------------------------------------------------
 # 10. Resumo das metricas
