@@ -1,0 +1,12 @@
+# R files
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Modelos salvos
+*.rds
+
+# Arquivos temporarios
+*.log
+*.tmp
