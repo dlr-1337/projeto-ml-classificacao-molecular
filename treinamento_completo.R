@@ -374,8 +374,11 @@ cat("Treinamento RF concluido!\n")
 print(modelo_rf)
 
 # Avaliacao
-predicoes_rf <- predict(modelo_rf, X_teste_sel)
+limiar_rf <- calcularLimiarYouden(modelo_rf$pred)
+cat("Limiar otimo (Youden) para RF:", round(limiar_rf, 4), "\n")
 prob_rf <- predict(modelo_rf, X_teste_sel, type = "prob")[, "Classe1"]
+predicoes_rf <- ifelse(prob_rf > limiar_rf, "Classe1", "Classe0")
+predicoes_rf <- factor(predicoes_rf, levels = c("Classe0", "Classe1"))
 conf_matrix_rf <- confusionMatrix(predicoes_rf, y_teste, positive = "Classe1")
 mcc_rf <- calcularMCC(conf_matrix_rf)
 roc_rf <- roc(y_teste, prob_rf, levels = c("Classe0", "Classe1"), direction = "<")
@@ -433,8 +436,11 @@ cat("Treinamento SVM concluido!\n")
 print(modelo_svm)
 
 # Avaliacao
-predicoes_svm <- predict(modelo_svm, X_teste_sel)
+limiar_svm <- calcularLimiarYouden(modelo_svm$pred)
+cat("Limiar otimo (Youden) para SVM:", round(limiar_svm, 4), "\n")
 prob_svm <- predict(modelo_svm, X_teste_sel, type = "prob")[, "Classe1"]
+predicoes_svm <- ifelse(prob_svm > limiar_svm, "Classe1", "Classe0")
+predicoes_svm <- factor(predicoes_svm, levels = c("Classe0", "Classe1"))
 conf_matrix_svm <- confusionMatrix(predicoes_svm, y_teste, positive = "Classe1")
 mcc_svm <- calcularMCC(conf_matrix_svm)
 roc_svm <- roc(y_teste, prob_svm, levels = c("Classe0", "Classe1"), direction = "<")
@@ -489,8 +495,11 @@ cat("Treinamento GBM concluido!\n")
 print(modelo_gbm)
 
 # Avaliacao
-predicoes_gbm <- predict(modelo_gbm, X_teste_sel)
+limiar_gbm <- calcularLimiarYouden(modelo_gbm$pred)
+cat("Limiar otimo (Youden) para GBM:", round(limiar_gbm, 4), "\n")
 prob_gbm <- predict(modelo_gbm, X_teste_sel, type = "prob")[, "Classe1"]
+predicoes_gbm <- ifelse(prob_gbm > limiar_gbm, "Classe1", "Classe0")
+predicoes_gbm <- factor(predicoes_gbm, levels = c("Classe0", "Classe1"))
 conf_matrix_gbm <- confusionMatrix(predicoes_gbm, y_teste, positive = "Classe1")
 mcc_gbm <- calcularMCC(conf_matrix_gbm)
 roc_gbm <- roc(y_teste, prob_gbm, levels = c("Classe0", "Classe1"), direction = "<")
@@ -545,8 +554,11 @@ cat("Treinamento Rede Neural concluido!\n")
 print(modelo_nnet)
 
 # Avaliacao
-predicoes_nnet <- predict(modelo_nnet, X_teste_sel)
+limiar_nnet <- calcularLimiarYouden(modelo_nnet$pred)
+cat("Limiar otimo (Youden) para NNet:", round(limiar_nnet, 4), "\n")
 prob_nnet <- predict(modelo_nnet, X_teste_sel, type = "prob")[, "Classe1"]
+predicoes_nnet <- ifelse(prob_nnet > limiar_nnet, "Classe1", "Classe0")
+predicoes_nnet <- factor(predicoes_nnet, levels = c("Classe0", "Classe1"))
 conf_matrix_nnet <- confusionMatrix(predicoes_nnet, y_teste, positive = "Classe1")
 mcc_nnet <- calcularMCC(conf_matrix_nnet)
 roc_nnet <- roc(y_teste, prob_nnet, levels = c("Classe0", "Classe1"), direction = "<")
