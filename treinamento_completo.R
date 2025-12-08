@@ -51,6 +51,20 @@ calcularLimiarYouden <- function(pred_df) {
   as.numeric(coords)
 }
 
+# Funcao para escolher limiar que maximiza acuracia (baseado em predicoes OOF)
+calcularLimiarAcuracia <- function(pred_df) {
+  if (is.null(pred_df) || nrow(pred_df) == 0 || !"Classe1" %in% names(pred_df)) {
+    return(0.5)
+  }
+  roc_obj <- pROC::roc(pred_df$obs, pred_df$Classe1, levels = c("Classe0", "Classe1"), direction = "<")
+  coords <- pROC::coords(roc_obj, x = "all", ret = c("threshold", "accuracy"), transpose = FALSE)
+  if (is.null(coords) || nrow(coords) == 0) return(0.5)
+  coords <- coords[!is.na(coords$accuracy), ]
+  if (nrow(coords) == 0) return(0.5)
+  best_idx <- which.max(coords$accuracy)
+  as.numeric(coords$threshold[best_idx])
+}
+
 # Funcao para remover features altamente correlacionadas
 removerCorrelacionadas <- function(X, threshold = 0.9) {
   # Calcular matriz de correlacao
@@ -263,7 +277,7 @@ cat("=============================================================\n\n")
 set.seed(1)
 
 # Parametros do EEC
-n_subsamples <- 10  # Numero de subconjuntos balanceados (como no EEC)
+n_subsamples <- 20  # Numero de subconjuntos balanceados (mais bagging para reduzir variancia)
 n_minority <- sum(y_treino == "Classe1")
 
 # Criar lista para guardar modelos do ensemble
@@ -298,22 +312,23 @@ for (i in 1:n_subsamples) {
     ),
     metric = "ROC",
     tuneLength = 3,
-    ntree = 200
+    ntree = 500
   )
 
   modelos_eec[[i]] <- modelo_i
   predicoes_eec_prob[, i] <- predict(modelo_i, X_teste_sel, type = "prob")[, "Classe1"]
 }
 
-# Ajustar limiar via Youden em predicoes OOF dos modelos do ensemble
+# Ajustar limiar via acuracia (e fallback Youden) em predicoes OOF dos modelos do ensemble
 predicoes_oof <- do.call(
   rbind,
   lapply(modelos_eec, function(m) {
     if (!is.null(m$pred)) m$pred[, c("obs", "Classe1")] else NULL
   })
 )
-limiar_eec <- calcularLimiarYouden(predicoes_oof)
-cat("Limiar otimo (Youden) para EEC:", round(limiar_eec, 4), "\n")
+limiar_eec_acc <- calcularLimiarAcuracia(predicoes_oof)
+limiar_eec <- ifelse(is.na(limiar_eec_acc), calcularLimiarYouden(predicoes_oof), limiar_eec_acc)
+cat("Limiar otimo (Acuracia) para EEC:", round(limiar_eec, 4), "\n")
 
 # Agregar predicoes (media das probabilidades) e aplicar limiar otimo
 prob_media_eec <- rowMeans(predicoes_eec_prob)
@@ -366,7 +381,7 @@ modelo_rf <- train(
   trControl = ctrl_balanced,
   metric = "ROC",
   tuneGrid = grid_rf,
-  ntree = 500,
+  ntree = 800,
   importance = TRUE
 )
 
@@ -374,8 +389,9 @@ cat("Treinamento RF concluido!\n")
 print(modelo_rf)
 
 # Avaliacao
-limiar_rf <- calcularLimiarYouden(modelo_rf$pred)
-cat("Limiar otimo (Youden) para RF:", round(limiar_rf, 4), "\n")
+limiar_rf_acc <- calcularLimiarAcuracia(modelo_rf$pred)
+limiar_rf <- ifelse(is.na(limiar_rf_acc), calcularLimiarYouden(modelo_rf$pred), limiar_rf_acc)
+cat("Limiar otimo (Acuracia) para RF:", round(limiar_rf, 4), "\n")
 prob_rf <- predict(modelo_rf, X_teste_sel, type = "prob")[, "Classe1"]
 predicoes_rf <- ifelse(prob_rf > limiar_rf, "Classe1", "Classe0")
 predicoes_rf <- factor(predicoes_rf, levels = c("Classe0", "Classe1"))
@@ -436,8 +452,9 @@ cat("Treinamento SVM concluido!\n")
 print(modelo_svm)
 
 # Avaliacao
-limiar_svm <- calcularLimiarYouden(modelo_svm$pred)
-cat("Limiar otimo (Youden) para SVM:", round(limiar_svm, 4), "\n")
+limiar_svm_acc <- calcularLimiarAcuracia(modelo_svm$pred)
+limiar_svm <- ifelse(is.na(limiar_svm_acc), calcularLimiarYouden(modelo_svm$pred), limiar_svm_acc)
+cat("Limiar otimo (Acuracia) para SVM:", round(limiar_svm, 4), "\n")
 prob_svm <- predict(modelo_svm, X_teste_sel, type = "prob")[, "Classe1"]
 predicoes_svm <- ifelse(prob_svm > limiar_svm, "Classe1", "Classe0")
 predicoes_svm <- factor(predicoes_svm, levels = c("Classe0", "Classe1"))
@@ -495,8 +512,9 @@ cat("Treinamento GBM concluido!\n")
 print(modelo_gbm)
 
 # Avaliacao
-limiar_gbm <- calcularLimiarYouden(modelo_gbm$pred)
-cat("Limiar otimo (Youden) para GBM:", round(limiar_gbm, 4), "\n")
+limiar_gbm_acc <- calcularLimiarAcuracia(modelo_gbm$pred)
+limiar_gbm <- ifelse(is.na(limiar_gbm_acc), calcularLimiarYouden(modelo_gbm$pred), limiar_gbm_acc)
+cat("Limiar otimo (Acuracia) para GBM:", round(limiar_gbm, 4), "\n")
 prob_gbm <- predict(modelo_gbm, X_teste_sel, type = "prob")[, "Classe1"]
 predicoes_gbm <- ifelse(prob_gbm > limiar_gbm, "Classe1", "Classe0")
 predicoes_gbm <- factor(predicoes_gbm, levels = c("Classe0", "Classe1"))
@@ -554,8 +572,9 @@ cat("Treinamento Rede Neural concluido!\n")
 print(modelo_nnet)
 
 # Avaliacao
-limiar_nnet <- calcularLimiarYouden(modelo_nnet$pred)
-cat("Limiar otimo (Youden) para NNet:", round(limiar_nnet, 4), "\n")
+limiar_nnet_acc <- calcularLimiarAcuracia(modelo_nnet$pred)
+limiar_nnet <- ifelse(is.na(limiar_nnet_acc), calcularLimiarYouden(modelo_nnet$pred), limiar_nnet_acc)
+cat("Limiar otimo (Acuracia) para NNet:", round(limiar_nnet, 4), "\n")
 prob_nnet <- predict(modelo_nnet, X_teste_sel, type = "prob")[, "Classe1"]
 predicoes_nnet <- ifelse(prob_nnet > limiar_nnet, "Classe1", "Classe0")
 predicoes_nnet <- factor(predicoes_nnet, levels = c("Classe0", "Classe1"))
